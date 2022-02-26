@@ -105,11 +105,11 @@ def imap_fetch(imap: IMAP4 | IMAP4_SSL, mbxs: list):
 				# Format the email's filename
 				time = date.strftime("%Y%m%dT%H%M%SZ")
 				# sndr = email.utils.parseaddr(mail["From"])[0].replace(" ", "-")
-				# name = "{}_{}.eml".format(time, sndr)
+				name = "{}.eml".format(time)
 				
 				# Write the email to its destination
-				print("Writing {}".format(time))
-				with open(os.path.join(opath, mbox[2], time), "wb") as fi:
+				print("Writing {}".format(name))
+				with open(os.path.join(opath, mbox[2], name), "wb") as fi:
 					fi.write(mail.as_bytes())
 
 def hlp():
