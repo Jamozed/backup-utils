@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+# Script for backing up IMAP mailboxes
+# Copyright (C) 2022, Jakob Wakeling
+# All rights reserved.
+
+__PROJECT_VERSION__ = "0.2.0"
+
+from imaplib import IMAP4, IMAP4_SSL
+import datetime, email, email.utils, getopt, getpass, os, re, sys
+
+opath: str = os.getcwd()
+pword: str = None
+
+re_imap_list_line = re.compile(r"\((?P<flags>.*?)\) \"(?P<delimiter>.*)\" (?P<name>.*)")
+
+def main():
+	try: ov, av = getopt.getopt(sys.argv[1:], "o:p:P:", ["help", "version"])
+	except getopt.GetoptError as e: error(e)
+	
+	global opath, pword; pfile: str = None
+	
+	for opt, val in ov:
+		match opt:
+			case "-o": opath = val
+			case "-p": pword = val
+			case "-P": pfile = val
+			case "--help": hlp(); sys.exit()
+			case "--version": ver(); sys.exit()
+	
+	# Assert that the server and username are specified
+	if (len(av) == 0): error("missing server operand")
+	if (len(av) == 1): error("missing username operand")
+	
+	# Assert that only one of -p or -P is specified
+	if (pword and pfile): error("-p and -P are mutually exclusive")
+	
+	# Assert that the out directory exists
+	if (not os.path.isdir(opath)): error("output directory does not exist")
+	
+	# If -P is specified, read the password from the file
+	if (pfile):
+		with open(pfile, "r") as fi: pword = fi.read()
+	
+	sname = av[0]; uname = av[1]
+	
+	# If a password is not specified, prompt for it
+	if (pword == None): pword = getpass.getpass("Password: ")
+	
+	# Connect, list, fetch, and disconnect from the IMAP server
+	imap = imap_connect(sname, 993, uname, pword)
+	mbxs = imap_list(imap)
+	imap_fetch(imap, mbxs)
+	imap.logout()
+
+def imap_connect(sname: str, sport: int, uname: str, pword: str) -> IMAP4 | IMAP4_SSL:
+	'''Connect to the IMAP server and return an IMAP4 object.'''
+	try:
+		print("Connecting to {}".format(sname))
+		imap = IMAP4_SSL(sname, sport)
+		
+		print("Logging in as {}".format(uname))
+		imap.login(uname, pword)
+	except IMAP4.error as e:
+		print(e); sys.exit(1)
+	
+	return imap
+
+def imap_list(imap: IMAP4 | IMAP4_SSL) -> list:
+	'''Return a list of mailboxes on the IMAP server.'''
+	try:
+		typ, data = imap.list(); assert (typ == "OK")
+		dirs = list()
+		
+		# Append each mailbox to the list
+		for line in data:
+			dirs.append(re_imap_list_line.match(line.decode()).groups())
+		
+		return dirs
+		
+	except IMAP4.error as e:
+		print(e); sys.exit(1)
+
+def imap_fetch(imap: IMAP4 | IMAP4_SSL, mbxs: list):
+	'''Fetch the contents of the specified mailboxes.'''
+	for mbox in mbxs:
+		# Select the mailbox and ensure that a destination directory exists
+		imap.select(mbox[2], readonly = True)
+		os.makedirs(os.path.join(opath, mbox[2]), exist_ok = True)
+		
+		# Get the list of messages in the current mailbox
+		print("Fetching from {}".format(mbox[2]))
+		typ, data = imap.search(None, "ALL")
+		
+		# Fetch the contents of all messages in the current mailbox
+		if (data[0].decode().strip() == ""): continue
+		typ, data = imap.fetch(data[0].decode().replace(" ", ","), "(BODY.PEEK[])")
+		
+		for part in data:
+			if isinstance(part, tuple):
+				# Parse the email's "Date" header
+				mail = email.message_from_bytes(part[1])
+				date = email.utils.parsedate_to_datetime(mail["Date"])
+				date = datetime.datetime.utcfromtimestamp(date.timestamp())
+				
+				# Format the email's filename
+				time = date.strftime("%Y%m%dT%H%M%SZ")
+				sndr = email.utils.parseaddr(mail["From"])[0].replace(" ", "-")
+				name = "{}_{}.eml".format(time, sndr)
+				
+				# Write the email to its destination
+				print("Writing {}".format(name))
+				with open(os.path.join(opath, mbox[2], name), "wb") as fi:
+					fi.write(mail.as_bytes())
+
+def hlp():
+	'''Print help information.'''
+	print("backup-imap - Backup IMAP mailboxes")
+	print("Usage:")
+	print("  backup-imap [-o dir] [-p pword|-P pfile] server[:port] username")
+	print("Options:")
+	print("  -o dir     Specify output directory, defaults to the current directory")
+	print("  -p pword   Specify password")
+	print("  -P pfile   Specify password file")
+	print("  --help     Display help information")
+	print("  --version  Display version information")
+
+def ver():
+	'''Print version information.'''
+	print("backup-imap, version {}".format(__PROJECT_VERSION__))
+	print("Copyright (C) 2022, Jakob Wakeling")
+	print("All rights reserved.")
+	print("OMKOV Permissive Licence (https://www.omkov.net/OLPE)")
+
+def error(*values: object):
+	'''Print an error message and exit.'''
+	print("{}: {}".format(sys.argv[0], *values)); sys.exit(1)
+
+def warn(*values: object):
+	'''Print a warning message.'''
+	print("{}: {}".format(sys.argv[0], *values))
+
+if __name__ == '__main__': main()
