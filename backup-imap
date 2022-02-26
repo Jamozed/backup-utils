@@ -34,8 +34,8 @@ def main():
 	# Assert that only one of -p or -P is specified
 	if (pword and pfile): error("-p and -P are mutually exclusive")
 	
-	# Assert that the out directory exists
-	if (not os.path.isdir(opath)): error("output directory does not exist")
+	# If the out directory does not exist, create it
+	if (not os.path.isdir(opath)): os.mkdir(opath)
 	
 	# If -P is specified, read the password from the file
 	if (pfile):
