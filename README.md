@@ -18,4 +18,4 @@ See the `--help` option for each utility for usage information.
 
 Copyright (C) 2022, Jakob Wakeling  
 All rights reserved.  
-[OMKOV Permissive Licence](https://www.omkov.net/OLPE)
+[OLPE Licence, version 1.1](https://www.omkov.net/licences/OLPE_1.1.txt)
