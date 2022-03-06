@@ -17,5 +17,4 @@ See the `--help` option for each utility for usage information.
 ## Meta
 
 Copyright (C) 2022, Jakob Wakeling  
-All rights reserved.  
-[OLPE Licence, version 1.1](https://www.omkov.net/licences/OLPE_1.1.txt)
+[MIT Licence](https://opensource.org/licenses/MIT)
